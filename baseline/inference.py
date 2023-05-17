@@ -7,6 +7,8 @@ import numpy as np
 import open3d as o3d
 from vgn.detection_implicit import VGNImplicit  # GIGA
 from vgn.perception import TSDFVolume, create_tsdf
+from vgn.utils import visual
+
 
 O_RESOLUTION = 40
 O_SIZE = 0.3  # Meters --> I saw this somewhere in the repo
@@ -77,14 +79,10 @@ class GIGAInference:
             extrinsics=np.expand_dims(camera_pose, axis=0),
         )
 
-        # Make empty object
         state = State(tsdf=tsdf_volume)
-        # Create point cloud in grasping frame
-        # scene_mesh = trimesh.PointCloud(np.asarray(state.tsdf.get_cloud()))
-        # world_scene_mesh = trimesh.PointCloud(np.asarray(state.tsdf._volume.get_point_cloud()[:, :3]))
-        grasps, scores, toc, composed_scene = self.giga_model(state)
+        grasps, scores, toc = self.giga_model(state)
         inference_time = time.time() - start_time
-        return grasps, scores, inference_time, composed_scene
+        return grasps, scores, inference_time
 
 if __name__ == "__main__":
 
@@ -112,6 +110,8 @@ if __name__ == "__main__":
         cy=ZED2_INTRINSICS_HALF[1, 2],
     )
 
+    taskTw_translation = np.array([-0.7, 0.2, -0.6])
+
     wTcam = np.array(
             [
                 [-0.00288795, -0.84104389, 0.54095919, 0.46337467],
@@ -121,14 +121,12 @@ if __name__ == "__main__":
             ]
         )
 
-    wTcam[:3, 3] += np.array([-0.7, 0.2, -0.6])
+    wTcam[:3, 3] += taskTw_translation
     camTw = np.linalg.inv(wTcam)
 
 
     model_dir = pathlib.Path(__file__).parents[1] / "data/models"
-    giga_inference = GIGAInference(
-            model_dir, camera_intrinsic=intrinsics, vis=True
-        )
+    giga_inference = GIGAInference(model_dir, camera_intrinsic=intrinsics)
 
     from PIL import Image
 
@@ -137,10 +135,60 @@ if __name__ == "__main__":
     depth = np.array(Image.open(data_path / "depth.png"))
     depth = depth.astype(np.float32) / 1000.0
 
-    grasps, scores, inference_time, composed_scene = giga_inference.predict(rgb_uint8, depth, camTw)
+    grasps, scores, inference_time = giga_inference.predict(rgb_uint8, depth, camTw)
 
+    # for i in range(len(grasps)):
+    #     grasps[i].pose.translation -= taskTw_translation
+    # best_grasp = grasps[0]
+    # grasp_pose = np.eye(4)
+    # grasp_pose[:3, :3] = best_grasp.pose.rotation.as_matrix()
+    # grasp_pose[:3, 3] = best_grasp.pose.translation
 
     # Visualize
+    def pcd_from_rgbd(rgb, depth, project_valid_depth_only):
+        o3d_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
+            width=intrinsics.width,
+            height=intrinsics.height,
+            fx=intrinsics.fx,
+            fy=intrinsics.fy,
+            cx=intrinsics.cx,
+            cy=intrinsics.cy,
+        )
+        rgb_o3d = o3d.geometry.Image(rgb)
+        depth_o3d = o3d.geometry.Image((depth*1000).astype(np.uint16))
+        rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
+            rgb_o3d, depth_o3d, convert_rgb_to_intensity=False
+        )
+        full_pcd = o3d.geometry.PointCloud.create_from_rgbd_image(
+            rgbd_image, o3d_camera_intrinsic, project_valid_depth_only=project_valid_depth_only
+        )
+        return full_pcd
+
+    full_pcd = pcd_from_rgbd(rgb_uint8, depth, project_valid_depth_only=True)
+    full_pcd_w = full_pcd.transform(wTcam)
+    grasp_mesh_list = [visual.grasp2mesh(g, s) for g, s in zip(grasps, scores)]
+    grasp_mesh_list = [grasp_mesh_list[0]]
+
+
     import rerun as rr
     rr.init("centergrasp")
     rr.spawn()
+
+    # add_o3d_pointcloud
+    points = np.asanyarray(full_pcd_w.points)
+    colors = np.asanyarray(full_pcd_w.colors) if full_pcd_w.has_colors() else None
+    colors_uint8 = (colors * 255).astype(np.uint8) if full_pcd_w.has_colors() else None
+    rr.log_points("full_pcd_w", positions=points, colors=colors_uint8, radii=0.001)
+
+    # Add grasps
+    for i, mesh in enumerate(grasp_mesh_list):
+        rr.log_mesh(
+            "grasp" + f"_{i}",
+            positions=mesh.vertices,
+            indices=mesh.faces,
+            normals=mesh.vertex_normals,
+            vertex_colors=mesh.visual.vertex_colors,
+        )
+
+    print("Done")
+        
