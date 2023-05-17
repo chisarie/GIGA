@@ -121,7 +121,7 @@ class TSDFVolume(object):
 def create_tsdf(size, resolution, depth_imgs, intrinsic, extrinsics):
     tsdf = TSDFVolume(size, resolution)
     for i in range(depth_imgs.shape[0]):
-        extrinsic = Transform.from_list(extrinsics[i])
+        extrinsic = Transform.from_matrix(extrinsics[i])
         tsdf.integrate(depth_imgs[i], intrinsic, extrinsic)
     return tsdf
 
