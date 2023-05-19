@@ -136,7 +136,7 @@ if __name__ == "__main__":
         ),
         check=False,
     )
-    wTtask = sm.SE3.Trans([0.7, -0.24, 0.66])
+    wTtask = sm.SE3.Trans([0.7, -0.24, 0.655])
     camTtask = wTcam.inv() * wTtask
 
     model_dir = pathlib.Path(__file__).parents[1] / "data/models"
@@ -262,5 +262,9 @@ if __name__ == "__main__":
         normals=pred_mesh.vertex_normals,
         vertex_colors=pred_mesh.visual.vertex_colors
     )
+
+    # Add images
+    rr.log_image("rgb", rgb_uint8_np)
+    rr.log_depth_image("depth", depth_np)
 
     print("Done")
