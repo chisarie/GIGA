@@ -127,6 +127,9 @@ class GIGAInference:
 
     def visualize(self, grasp_mesh, wTcam, wTtask, tsdf_pc, rgb, depth, pred_mesh):
         rr.connect("192.168.0.120:9876")
+        rr.log_cleared("giga", recursive=True)
+        rr.log_cleared("rgb", recursive=True)
+        rr.log_cleared("depth", recursive=True)
 
         # Add images
         rr.log_image("rgb", rgb)
