@@ -3,12 +3,14 @@ import time
 import dataclasses
 import pathlib
 import trimesh
+import torch
 import numpy as np
 import open3d as o3d
 import spatialmath as sm
 from vgn.detection_implicit import VGNImplicit  # GIGA
 from vgn.perception import TSDFVolume, create_tsdf
 from vgn.utils import visual
+from vgn.ConvONets.conv_onet.generation import Generator3D
 
 
 O_RESOLUTION = 40
@@ -61,13 +63,20 @@ class GIGAInference:
             visualize=vis,
             # All arguments below are copied from the default list/arguments form the readme
             best=True,
-            qual_th=0.9,
+            qual_th=0.75,
             force_detection=True,
             out_th=0.1,
             select_top=False,
         )
-        self.giga_model.net.eval()
         self.camera_intrinsic = camera_intrinsic
+        self.giga_model.net.eval()
+        self.generator = Generator3D(
+            self.giga_model.net,
+            device=self.giga_model.device,
+            input_type='pointcloud',
+            padding=0,
+        )
+        return
 
     def predict(self, rgb: np.ndarray, depth: np.ndarray, camera_pose: np.ndarray):
         assert camera_pose.shape == (4, 4)
@@ -86,6 +95,10 @@ class GIGAInference:
         grasps, scores, toc = self.giga_model(state)
         inference_time = time.time() - start_time
         return grasps, scores, inference_time, tsdf_volume
+    
+    def predict_mesh(self, pc_input):
+        pred_mesh, _ = self.generator.generate_mesh({'inputs': pc_input})
+        return pred_mesh
 
 
 if __name__ == "__main__":
@@ -123,7 +136,7 @@ if __name__ == "__main__":
         ),
         check=False,
     )
-    wTtask = sm.SE3.Trans([0.7, -0.24, 0.65])
+    wTtask = sm.SE3.Trans([0.7, -0.24, 0.66])
     camTtask = wTcam.inv() * wTtask
 
     model_dir = pathlib.Path(__file__).parents[1] / "data/models"
@@ -147,6 +160,8 @@ if __name__ == "__main__":
     grasps, scores, inference_time, tsdf_volume = giga_inference.predict(
         rgb_uint8_np, depth_np, camTtask.A
     )
+    pc_torch = torch.tensor(tsdf_volume.get_grid())
+    pred_mesh = giga_inference.predict_mesh(pc_torch)
 
     # Visualize
     def pcd_from_rgbd(rgb, depth, project_valid_depth_only):
@@ -234,5 +249,18 @@ if __name__ == "__main__":
             normals=mesh.vertex_normals,
             vertex_colors=mesh.visual.vertex_colors,
         )
+
+    # Add shape
+    scale_matrix = np.eye(4)
+    scale_matrix[:3, :3] *= O_SIZE
+    translation_matrix = sm.SE3.Trans(ws_size / 2).A
+    pred_mesh.apply_transform(translation_matrix @ wTtask.A @ scale_matrix)
+    rr.log_mesh(
+        "giga/shape",
+        positions=pred_mesh.vertices,
+        indices=pred_mesh.faces,
+        normals=pred_mesh.vertex_normals,
+        vertex_colors=pred_mesh.visual.vertex_colors
+    )
 
     print("Done")
