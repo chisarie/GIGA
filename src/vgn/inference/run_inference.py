@@ -13,7 +13,7 @@ def main():
     rgb_uint8 = np.array(Image.open(data_path / "rgb.png"))
     depth = np.array(Image.open(data_path / "depth.png"))
     depth = depth.astype(np.float32) / 1000.0
-    model_dir = pathlib.Path(__file__).parents[4] / "data/models"
+    model_dir = pathlib.Path(__file__).parents[3] / "data/models"
 
     # Initialize
     wTcam = sm.SE3(wTcam_np, check=False)
