@@ -8,8 +8,8 @@ from vgn.inference.inference_class import GIGAInference, INTRINSICS
 # Get Image dirs
 real_dir = pathlib.Path(__file__).parents[6] / "datasets/rgbd_table/real/train_pbr/000000"
 depth_paths = sorted(real_dir.glob("depth/*.png"))
-giga_mesh_dir = real_dir / "giga_mesh"
-giga_mesh_dir.mkdir(exist_ok=True)
+giga_shape_dir = real_dir / "giga_shape"
+giga_shape_dir.mkdir(exist_ok=True)
 
 # Get GIGA model
 wTcam = sm.SE3(
@@ -39,5 +39,5 @@ for depth_path in depth_paths:
         depth_np, camTtask.A, reconstruction=True
     )
     # Save mesh
-    pred_mesh_path = giga_mesh_dir / (depth_path.stem + ".ply")
+    pred_mesh_path = giga_shape_dir / (depth_path.stem + ".ply")
     pred_mesh.export(pred_mesh_path)
