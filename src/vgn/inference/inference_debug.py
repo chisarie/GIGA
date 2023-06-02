@@ -1,16 +1,25 @@
 import pathlib
 import numpy as np
+from PIL import Image
 import spatialmath as sm
 from vgn.utils import visual
-from centergrasp_fmm.zed2 import ZED2Camera
 from vgn.inference.inference_class import GIGAInference, INTRINSICS
 
 
 
 if __name__ == "__main__":
     # Get data
-    camera = ZED2Camera()
-    rgb_uint8_np, depth_np, confidence_map_np = camera.get_image()
+    try:
+        from centergrasp_fmm.zed2 import ZED2Camera
+        camera = ZED2Camera()
+        rgb_uint8_np, depth_np, _ = camera.get_image()
+    except:
+        print("Zed Camera not found, using saved data instead")
+        img_path = pathlib.Path(__file__).parent
+        rgb_uint8_np = np.array(Image.open(img_path / "rgb.png"))
+        depth_uint16 = np.array(Image.open(img_path / "depth.png"))
+        depth_np = depth_uint16.astype(np.float32) / 1000.0
+
     wTcam = sm.SE3(
         np.array(
             [
@@ -32,7 +41,7 @@ if __name__ == "__main__":
     
     # Do inference
     grasps, scores, inference_time, tsdf_pc, pred_mesh = giga_inference.predict(
-        depth_np, camTtask.A, reconstruction=False
+        depth_np, camTtask.A, reconstruction=True
     )
     best_grasp = sm.SE3.Rt(R=grasps[0].pose.rotation.as_matrix(), t=grasps[0].pose.translation)
     wTgrasp = wTtask * best_grasp
