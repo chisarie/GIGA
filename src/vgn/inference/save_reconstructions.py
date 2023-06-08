@@ -1,3 +1,4 @@
+import tqdm
 import pathlib
 import numpy as np
 from PIL import Image
@@ -6,7 +7,7 @@ from vgn.inference.inference_class import GIGAInference, INTRINSICS
 
 
 # Get Image dirs
-real_dir = pathlib.Path(__file__).parents[6] / "datasets/rgbd_table/real/train_pbr/000000"
+real_dir = pathlib.Path(__file__).parents[6] / "datasets/centergrasp_experiments/rgbd_GIGAPipeline/real/train_pbr/000000"
 depth_paths = sorted(real_dir.glob("depth/*.png"))
 giga_shape_dir = real_dir / "giga_shape"
 giga_shape_dir.mkdir(exist_ok=True)
@@ -31,7 +32,7 @@ model_dir = pathlib.Path(__file__).parents[3] / "data/models"
 camTtask = wTcam.inv() * wTtask
 giga_inference = GIGAInference(model_dir, camera_intrinsic=INTRINSICS)
 
-for depth_path in depth_paths:
+for depth_path in tqdm.tqdm(depth_paths):
     depth_uint16 = np.array(Image.open(depth_path))
     depth_np = depth_uint16.astype(np.float32) / 1000.0
     # Do inference
