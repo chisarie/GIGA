@@ -11,21 +11,6 @@ from vgn.detection_implicit import VGNImplicit  # GIGA
 from vgn.perception import TSDFVolume, create_tsdf
 from vgn.ConvONets.conv_onet.generation import Generator3D
 
-
-ZED2_INTRINSICS = np.array(
-    [
-        [1062.88232421875, 0.0, 957.660400390625],
-        [0.0, 1062.88232421875, 569.8204345703125],
-        [0.0, 0.0, 1.0],
-    ]
-)
-ZED2_INTRINSICS_HALF = np.copy(ZED2_INTRINSICS)
-ZED2_INTRINSICS_HALF[0:-1, :] /= 2
-ZED2_INTRINSICS_HALF[1, 2] -= 14  # Cropping
-ZED2_RESOLUTION = np.array([1920, 1080], dtype=np.int32)
-ZED2_RESOLUTION_HALF = ZED2_RESOLUTION // 2
-ZED2_RESOLUTION_HALF[1] -= 28  # Cropping
-
 O_RESOLUTION = 40
 O_SIZE = 0.3  # Meters --> I saw this somewhere in the repo
 O_VOXEL_SIZE = O_SIZE / O_RESOLUTION
@@ -44,16 +29,6 @@ class CameraIntrinsic:
     fy: float
     cx: float
     cy: float
-
-
-INTRINSICS = CameraIntrinsic(
-    width=ZED2_RESOLUTION_HALF[0],
-    height=ZED2_RESOLUTION_HALF[1],
-    fx=ZED2_INTRINSICS_HALF[0, 0],
-    fy=ZED2_INTRINSICS_HALF[1, 1],
-    cx=ZED2_INTRINSICS_HALF[0, 2],
-    cy=ZED2_INTRINSICS_HALF[1, 2],
-)
 
 
 class ModelType(enum.Enum):
@@ -126,7 +101,6 @@ class GIGAInference:
         return grasps, scores, inference_time, tsdf_volume.get_cloud(), pred_mesh
 
     def visualize(self, grasp_mesh, wTcam, wTtask, tsdf_pc, rgb, depth, pred_mesh):
-        rr.connect("192.168.0.120:9876")
         rr.log_cleared("giga", recursive=True)
         rr.log_cleared("rgb", recursive=True)
         rr.log_cleared("depth", recursive=True)
