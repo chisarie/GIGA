@@ -101,13 +101,13 @@ class GIGAInference:
         return grasps, scores, inference_time, tsdf_volume.get_cloud(), pred_mesh
 
     def visualize(self, grasp_mesh, wTcam, wTtask, tsdf_pc, rgb, depth, pred_mesh):
-        rr.log_cleared("giga", recursive=True)
-        rr.log_cleared("rgb", recursive=True)
-        rr.log_cleared("depth", recursive=True)
+        rr.log("giga", rr.Clear(recursive=True))
+        rr.log("rgb", rr.Clear(recursive=True))
+        rr.log("depth", rr.Clear(recursive=True))
 
         # Add images
-        rr.log_image("rgb", rgb)
-        rr.log_depth_image("depth", depth)
+        rr.log("rgb", rr.Image(rgb))
+        rr.log("depth", rr.DepthImage(depth))
 
         # add_o3d_pointcloud
         o3d_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
@@ -131,51 +131,39 @@ class GIGAInference:
         points = np.asanyarray(full_pcd_w.points)
         colors = np.asanyarray(full_pcd_w.colors) if full_pcd_w.has_colors() else None
         colors_uint8 = (colors * 255).astype(np.uint8) if full_pcd_w.has_colors() else None
-        rr.log_points("giga/full_pcd_w", positions=points, colors=colors_uint8, radii=0.001)
+        rr.log("giga/full_pcd_w", rr.Points3D(positions=points, colors=colors_uint8, radii=0.001))
 
         # Add origin
-        rr.log_arrow(
-            "giga/origin_x",
-            origin=[0, 0, 0],
-            vector=[0.1, 0, 0],
-            color=[255, 0, 0],
-            width_scale=0.01,
-        )
-        rr.log_arrow(
-            "giga/origin_y",
-            origin=[0, 0, 0],
-            vector=[0, 0.1, 0],
-            color=[0, 255, 0],
-            width_scale=0.01,
-        )
-        rr.log_arrow(
-            "giga/origin_z",
-            origin=[0, 0, 0],
-            vector=[0, 0, 0.1],
-            color=[0, 0, 255],
-            width_scale=0.01,
-        )
+        rr.log("giga/origin", rr.Arrows3D(
+            origins=np.zeros((3, 3)),
+            vectors=np.eye(3) * 0.1,
+            colors=np.eye(3, dtype=int) * 255,
+        ))
 
         # add input_tsdf
         w_T_input_tsdf_pc = tsdf_pc.transform(wTtask.A)
-        rr.log_points(
-            "giga/input_tsdf_pc",
-            positions=np.asanyarray(w_T_input_tsdf_pc.points),
-            radii=0.001,
+        rr.log(
+            "giga/input_tsdf_pc", rr.Points3D(positions=np.asanyarray(w_T_input_tsdf_pc.points), radii=0.001)
         )
 
         # add workspace obb
-        ws_size = np.array([O_SIZE, O_SIZE, O_SIZE])
-        rr.log_obb("giga/workspace", half_size=ws_size, position=wTtask.t + ws_size / 2)
+        ws_half_size = np.array([O_SIZE, O_SIZE, O_SIZE]) / 2
+        rr.log("giga/workspace", rr.Boxes3D(
+            centers=wTtask.t + ws_half_size,
+            half_sizes=ws_half_size
+            )
+        )
 
         # Add grasps
         grasp_mesh_w = grasp_mesh.apply_transform(wTtask.A)
-        rr.log_mesh(
+        rr.log(
             "giga/w_grasp",
-            positions=grasp_mesh_w.vertices,
-            indices=grasp_mesh_w.faces,
-            normals=grasp_mesh_w.vertex_normals,
-            vertex_colors=grasp_mesh_w.visual.vertex_colors,
+            rr.Mesh3D(
+                vertex_positions=grasp_mesh_w.vertices,
+                vertex_normals=grasp_mesh_w.vertex_normals,
+                vertex_colors=grasp_mesh_w.visual.vertex_colors,
+                indices=grasp_mesh_w.faces,
+            )
         )
 
         if pred_mesh is None:
@@ -183,13 +171,15 @@ class GIGAInference:
         # Add shape
         scale_matrix = np.eye(4)
         scale_matrix[:3, :3] *= O_SIZE
-        translation_matrix = sm.SE3.Trans(ws_size / 2).A
+        translation_matrix = sm.SE3.Trans(ws_half_size / 2).A
         pred_mesh.apply_transform(translation_matrix @ wTtask.A @ scale_matrix)
-        rr.log_mesh(
+        rr.log(
             "giga/shape",
-            positions=pred_mesh.vertices,
-            indices=pred_mesh.faces,
-            normals=pred_mesh.vertex_normals,
-            vertex_colors=pred_mesh.visual.vertex_colors,
+            rr.Mesh3D(
+                vertex_positions=pred_mesh.vertices,
+                vertex_normals=pred_mesh.vertex_normals,
+                vertex_colors=pred_mesh.visual.vertex_colors,
+                indices=pred_mesh.faces,
+            )
         )
         return
