@@ -170,10 +170,6 @@ class GIGAInference:
         if pred_mesh is None:
             return
         # Add shape
-        scale_matrix = np.eye(4)
-        scale_matrix[:3, :3] *= O_SIZE
-        translation_matrix = sm.SE3.Trans(ws_half_size / 2).A
-        pred_mesh.apply_transform(translation_matrix @ wTtask.A @ scale_matrix)
         rr.log(
             "giga/shape",
             rr.Mesh3D(
