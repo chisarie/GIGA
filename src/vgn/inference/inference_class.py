@@ -155,16 +155,17 @@ class GIGAInference:
         )
 
         # Add grasps
-        grasp_mesh_w = grasp_mesh.apply_transform(wTtask.A)
-        rr.log(
-            "giga/w_grasp",
-            rr.Mesh3D(
-                vertex_positions=grasp_mesh_w.vertices,
-                vertex_normals=grasp_mesh_w.vertex_normals,
-                vertex_colors=grasp_mesh_w.visual.vertex_colors,
-                indices=grasp_mesh_w.faces,
+        if grasp_mesh is not None:
+            grasp_mesh_w = grasp_mesh.apply_transform(wTtask.A)
+            rr.log(
+                "giga/w_grasp",
+                rr.Mesh3D(
+                    vertex_positions=grasp_mesh_w.vertices,
+                    vertex_normals=grasp_mesh_w.vertex_normals,
+                    vertex_colors=grasp_mesh_w.visual.vertex_colors,
+                    indices=grasp_mesh_w.faces,
+                )
             )
-        )
 
         if pred_mesh is None:
             return
