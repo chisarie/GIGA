@@ -20,7 +20,8 @@
             "args": [
                 "--num-view",
                 "1",
-                "--object-set pile/test",
+                "--object-set", 
+                "pile/test",
                 "--scene",
                 "pile",
                 "--num-rounds",
