@@ -12,3 +12,9 @@ pip install -e .
 
 python scripts/convonet_setup.py build_ext --inplace
 ```
+
+## Inference
+
+```bash
+python scripts/sim_grasp_multiple.py --num-view 1 --object-set pile/test --scene pile --num-rounds 100 --sideview --add-noise dex --force --best --model ./data/models/giga_pile.pt --type giga --result-path ./result --sim-gui
+```
