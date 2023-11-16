@@ -100,7 +100,7 @@ class GIGAInference:
             pred_mesh = None
         return grasps, scores, inference_time, tsdf_volume.get_cloud(), pred_mesh
 
-    def visualize(self, grasp_mesh, wTcam, wTtask, tsdf_pc, rgb, depth, pred_mesh):
+    def visualize(self, grasp_mesh_list, wTcam, wTtask, tsdf_pc, rgb, depth, pred_mesh):
         rr.log("giga", rr.Clear(recursive=True))
         rr.log("rgb", rr.Clear(recursive=True))
         rr.log("depth", rr.Clear(recursive=True))
@@ -155,10 +155,10 @@ class GIGAInference:
         )
 
         # Add grasps
-        if grasp_mesh is not None:
+        for i, grasp_mesh in enumerate(grasp_mesh_list):
             grasp_mesh_w = grasp_mesh.apply_transform(wTtask.A)
             rr.log(
-                "giga/w_grasp",
+                f"giga/w_grasp_{i}",
                 rr.Mesh3D(
                     vertex_positions=grasp_mesh_w.vertices,
                     vertex_normals=grasp_mesh_w.vertex_normals,
