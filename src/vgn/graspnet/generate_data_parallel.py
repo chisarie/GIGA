@@ -13,7 +13,7 @@ from vgn.perception import *
 from vgn.utils.transform import Rotation, Transform
 from vgn.utils.implicit import get_mesh_pose_list_from_world
 
-from vgn.graspnet.graspnet_data import KINECT_K, GraspNetReader, GIGA_GRASPNET_ROOT
+from vgn.graspnet.graspnet_data import KINECT_INTRINSIC, GraspNetReader, GIGA_GRASPNET_ROOT, GRASPNET_ROOT
 
 
 def main(args, rank):
@@ -25,42 +25,47 @@ def main(args, rank):
     finger_depth = 0.05
     max_opening_width = 0.08
     size = 6 * finger_depth
-    camera_intrinsic = KINECT_K
+    ws_lower = np.array([0.02, 0.02, 0.0])
+    ws_upper = np.array([size-0.02, size-0.02, size])
+    camera_intrinsic = KINECT_INTRINSIC
 
 
-    if rank == 0:
-        (args.root / "scenes").mkdir(parents=True)
-        write_setup(
-            args.root,
-            size,
-            camera_intrinsic,
-            max_opening_width,
-            finger_depth,
-        )
-        if args.save_scene:
-            (args.root / "mesh_pose_list").mkdir(parents=True)
+    (GIGA_GRASPNET_ROOT / "scenes").mkdir(parents=True, exist_ok=True)
+    (GIGA_GRASPNET_ROOT / "mesh_pose_list").mkdir(parents=True, exist_ok=True)
+    write_setup(
+        GIGA_GRASPNET_ROOT,
+        size,
+        camera_intrinsic,
+        max_opening_width,
+        finger_depth,
+    )
 
     for idx in tqdm(range(len(data_reader))):
-        _, depth, poses, obj_indices = data_reader.get_data_np(idx)
+        _, depth, poses, obj_indices, cam_pose = data_reader.get_data_np(idx)
 
         # reconstrct point cloud using a subset of the images
         # tsdf = create_tsdf(size, 120, depth_imgs, sim.camera.intrinsic, extrinsics)
         # pc = tsdf.get_cloud()
 
         # crop surface and borders from point cloud
-        bounding_box = o3d.geometry.AxisAlignedBoundingBox(sim.lower, sim.upper)
-        pc = pc.crop(bounding_box)
+        # bounding_box = o3d.geometry.AxisAlignedBoundingBox(ws_lower, ws_upper)
+        # pc = pc.crop(bounding_box)
         # o3d.visualization.draw_geometries([pc])
 
-        if pc.is_empty():
-            print("Point cloud empty, skipping scene")
-            continue
+        # if pc.is_empty():
+        #     print("Point cloud empty, skipping scene")
+        #     continue
 
         # store the raw data
-        scene_id = write_sensor_data(GIGA_GRASPNET_ROOT, depth, extrinsics_side)
-        if args.save_scene:
-            mesh_pose_list = get_mesh_pose_list_from_world(sim.world, args.object_set)
-            write_point_cloud(GIGA_GRASPNET_ROOT, scene_id, mesh_pose_list, name="mesh_pose_list")
+        scene_id = write_sensor_data(GIGA_GRASPNET_ROOT, depth, cam_pose)
+
+        mesh_pose_list = []
+        for i, obj_idx in enumerate(obj_indices):
+            mesh_path = GRASPNET_ROOT / "models" / f"{obj_idx:03d}" / "textured.obj"
+            scale = 1.0
+            obj_pose = poses[i]
+            mesh_pose_list.append((str(mesh_path), scale, obj_pose))
+        write_point_cloud(GIGA_GRASPNET_ROOT, scene_id, mesh_pose_list, name="mesh_pose_list")
 
         grasps_success, grasps_failure = data_reader.load_scene_grasps(idx)
         for grasp in grasps_success:
@@ -109,15 +114,8 @@ def evaluate_grasp_point(sim, pos, normal, num_rotations=6):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("root", type=Path)
-    parser.add_argument("--scene", type=str, choices=["pile", "packed"], default="pile")
-    parser.add_argument("--object-set", type=str, default="blocks")
-    parser.add_argument("--num-grasps", type=int, default=10000)
-    parser.add_argument("--grasps-per-scene", type=int, default=120)
     parser.add_argument("--num-proc", type=int, default=1)
     parser.add_argument("--save-scene", action="store_true")
-    parser.add_argument("--random", action="store_true", help="Add distrubation to camera pose")
-    parser.add_argument("--sim-gui", action="store_true")
     args = parser.parse_args()
     args.save_scene = True
     if args.num_proc > 1:
