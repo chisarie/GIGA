@@ -67,13 +67,16 @@ def main(args, rank):
             mesh_pose_list.append((str(mesh_path), scale, obj_pose))
         write_point_cloud(GIGA_GRASPNET_ROOT, scene_id, mesh_pose_list, name="mesh_pose_list")
 
-        grasps_success, grasps_failure = data_reader.load_scene_grasps(idx)
-        for grasp in grasps_success:
-            label = Label.SUCCESS
-            write_grasp(GIGA_GRASPNET_ROOT, scene_id, grasp, label)
-        for grasp in grasps_failure:
-            label = Label.FAILURE
-            write_grasp(GIGA_GRASPNET_ROOT, scene_id, grasp, label)
+        # TODO: !!! shouldnt all grasp poses be the same in world frame?
+
+        grasp_group = data_reader.load_scene_grasps(idx)
+        for grasp in grasp_group:
+            orientation = Rotation.from_matrix(grasp.rotation_matrix)
+            position = grasp.translation
+            width = grasp.width
+            vgn_grasp = Grasp(Transform(orientation, position), width)
+            label = Label.SUCCESS if grasp.score >= 0.5 else Label.FAILURE
+            write_grasp(GIGA_GRASPNET_ROOT, scene_id, vgn_grasp, label)
     return
 
 

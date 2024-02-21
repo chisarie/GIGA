@@ -5,7 +5,7 @@ from typing import Tuple
 from vgn.grasp import Grasp
 from vgn.utils.transform import Transform
 from vgn.perception import CameraIntrinsic
-from graspnetAPI import GraspNet
+from graspnetAPI import GraspNet, GraspGroup
 from graspnetAPI.utils.xmlhandler import xmlReader
 from graspnetAPI.utils.utils import parse_posevector, generate_views
 from graspnetAPI.utils.rotation import batch_viewpoint_params_to_matrix
@@ -64,9 +64,8 @@ class GraspNetReader:
         cam_pose = cam0_wrt_table @ rel_cam_poses[img_idx]
         return rgb, depth, poses, obj_indices, cam_pose
 
-    def load_scene_grasps(self, idx: int) -> np.ndarray:
+    def load_scene_grasps(self, idx: int) -> GraspGroup:
         scene_name, img_name = self.get_scene_img_names(idx)
         sceneId, annId = int(scene_name.replace("scene_", "")), int(img_name)
         grasp_group = self.graspnet_api.loadGrasp(sceneId, annId, fric_coef_thresh=1.0)
-        # TODO: did we forget widths in our sgdf?
-        return
+        return grasp_group
