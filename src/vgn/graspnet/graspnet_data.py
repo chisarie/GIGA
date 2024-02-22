@@ -37,35 +37,41 @@ class GraspNetReader:
         self.camera = "kinect"
         self.graspnet_api = GraspNet(root=GRASPNET_ROOT, camera=self.camera, split=mode)
         return
+    
+    @property
+    def scenes_idx(self):
+        return self.graspnet_api.sceneIds
 
     def __len__(self):
         return len(self.graspnet_api)
-
-    def get_scene_img_names(self, idx: int) -> Tuple[str]:
-        rgbPath = pathlib.Path(self.graspnet_api.loadData(idx)[0])
-        scene_name = rgbPath.parents[2].name
-        img_name = rgbPath.stem
-        return scene_name, img_name
-
-    def get_data_np(self, idx: int):
-        paths = self.graspnet_api.loadData(idx)
+    
+    def load_depth(self, scene_idx: int, img_idx: int) -> np.ndarray:
+        depth = self.graspnet_api.loadDepth(sceneId=scene_idx, camera=self.camera, annId=img_idx)
+        return depth
+    
+    def load_cam_pose(self, scene_idx: int, img_idx: int) -> np.ndarray:
+        paths = self.graspnet_api.loadData(scene_idx, self.camera, img_idx)
         rgbPath = pathlib.Path(paths[0])
-        depthPath = pathlib.Path(paths[1])
-        camera_poses_path = rgbPath.parents[1] / "camera_poses.npy"
         cam0_wrt_table_path = rgbPath.parents[1] / "cam0_wrt_table.npy"
-        poses_path = str(rgbPath).replace("/rgb/", "/annotations/").replace(".png", ".xml")
-        img_idx = int(rgbPath.stem)
-
-        rgb = np.array(Image.open(rgbPath)) # uint8
-        depth = np.array(Image.open(depthPath), dtype=np.float32) / 1000
-        obj_indices, poses = get_obj_poses(poses_path)
-        rel_cam_poses = np.load(camera_poses_path)
         cam0_wrt_table = np.load(cam0_wrt_table_path)
+        if img_idx == 0:
+            return cam0_wrt_table
+        camera_poses_path = rgbPath.parents[1] / "camera_poses.npy"
+        rel_cam_poses = np.load(camera_poses_path)
         cam_pose = cam0_wrt_table @ rel_cam_poses[img_idx]
-        return rgb, depth, poses, obj_indices, cam_pose
+        return cam_pose
+    
+    def load_obj_poses(self, scene_idx: int) -> Tuple[np.ndarray]:
+        img_idx = 0
+        paths = self.graspnet_api.loadData(scene_idx, self.camera, img_idx)
+        obj_poses_path = paths[0].replace("/rgb/", "/annotations/").replace(".png", ".xml")
+        obj_indices, camTposes = get_obj_poses(obj_poses_path)
+        wTcam = self.load_cam_pose(scene_idx, img_idx)
+        obj_poses = [wTcam @ camTpose for camTpose in camTposes]
+        return obj_indices, obj_poses
 
-    def load_scene_grasps(self, idx: int) -> GraspGroup:
-        scene_name, img_name = self.get_scene_img_names(idx)
-        sceneId, annId = int(scene_name.replace("scene_", "")), int(img_name)
-        grasp_group = self.graspnet_api.loadGrasp(sceneId, annId, fric_coef_thresh=1.0)
+    def load_scene_grasps(self, scene_idx: int) -> GraspGroup:
+        wTcam = self.load_cam_pose(scene_idx, img_idx=0)
+        grasp_group = self.graspnet_api.loadGrasp(scene_idx, annId=0, fric_coef_thresh=1.0)
+        grasp_group = grasp_group.transform(wTcam)
         return grasp_group

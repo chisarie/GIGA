@@ -1,34 +1,31 @@
-import argparse
-from pathlib import Path
-
 import numpy as np
 import open3d as o3d
-import scipy.signal as signal
 from tqdm import tqdm
-import multiprocessing as mp
 
-from vgn.grasp import Grasp, Label
+from graspnetAPI import Grasp as GraspNetGrasp
+from vgn.grasp import Grasp as VGNGrasp
+from vgn.grasp import Label as VGNLabel
 from vgn.io import *
 from vgn.perception import *
 from vgn.utils.transform import Rotation, Transform
-from vgn.utils.implicit import get_mesh_pose_list_from_world
 
 from vgn.graspnet.graspnet_data import KINECT_INTRINSIC, GraspNetReader, GIGA_GRASPNET_ROOT, GRASPNET_ROOT
 
 
-def main(args, rank):
-    np.random.seed()
-    seed = np.random.randint(0, 1000) + rank
-    np.random.seed(seed)
+def grasp_graspnet_to_vgn(grasp: GraspNetGrasp) -> VGNGrasp:
+    orientation = Rotation.from_matrix(grasp.rotation_matrix)
+    position = grasp.translation
+    width = grasp.width
+    return VGNGrasp(Transform(orientation, position), width)
 
-    data_reader = GraspNetReader()
+def main(visualize: bool = False):
+    np.random.seed(123)
     finger_depth = 0.05
     max_opening_width = 0.08
     size = 6 * finger_depth
-    ws_lower = np.array([0.02, 0.02, 0.0])
-    ws_upper = np.array([size-0.02, size-0.02, size])
     camera_intrinsic = KINECT_INTRINSIC
 
+    data_reader = GraspNetReader()
 
     (GIGA_GRASPNET_ROOT / "scenes").mkdir(parents=True, exist_ok=True)
     (GIGA_GRASPNET_ROOT / "mesh_pose_list").mkdir(parents=True, exist_ok=True)
@@ -40,92 +37,53 @@ def main(args, rank):
         finger_depth,
     )
 
-    for idx in tqdm(range(len(data_reader))):
-        _, depth, poses, obj_indices, cam_pose = data_reader.get_data_np(idx)
+    for scene_idx in tqdm(range(len(data_reader.scenes_idx))):
+        # Depth images (i.e. scenes)
+        depth_img = data_reader.load_depth(scene_idx, img_idx=0)
+        cam_pose = data_reader.load_cam_pose(scene_idx, img_idx=0)
+        extrinsic = np.r_[Rotation.from_matrix(cam_pose[:3, :3]).as_quat(), cam_pose[:3, 3]]
+        # TODO: check depth_img format (uint vs float)
+        scene_uuid = write_sensor_data(GIGA_GRASPNET_ROOT, depth_img, extrinsic)
 
-        # reconstrct point cloud using a subset of the images
-        # tsdf = create_tsdf(size, 120, depth_imgs, sim.camera.intrinsic, extrinsics)
-        # pc = tsdf.get_cloud()
-
-        # crop surface and borders from point cloud
-        # bounding_box = o3d.geometry.AxisAlignedBoundingBox(ws_lower, ws_upper)
-        # pc = pc.crop(bounding_box)
-        # o3d.visualization.draw_geometries([pc])
-
-        # if pc.is_empty():
-        #     print("Point cloud empty, skipping scene")
-        #     continue
-
-        # store the raw data
-        scene_id = write_sensor_data(GIGA_GRASPNET_ROOT, depth, cam_pose)
-
+        # Mesh pose list
+        obj_indices, obj_poses = data_reader.load_obj_poses(scene_idx)
         mesh_pose_list = []
-        for i, obj_idx in enumerate(obj_indices):
-            mesh_path = GRASPNET_ROOT / "models" / f"{obj_idx:03d}" / "textured.obj"
+        for obj_idx, obj_pose in zip(obj_indices, obj_poses):
             scale = 1.0
-            obj_pose = poses[i]
+            mesh_path = GRASPNET_ROOT / "models" / f"{obj_idx:03d}" / "textured.obj"
             mesh_pose_list.append((str(mesh_path), scale, obj_pose))
-        write_point_cloud(GIGA_GRASPNET_ROOT, scene_id, mesh_pose_list, name="mesh_pose_list")
-
-        # TODO: !!! shouldnt all grasp poses be the same in world frame?
-
-        grasp_group = data_reader.load_scene_grasps(idx)
-        for grasp in grasp_group:
-            orientation = Rotation.from_matrix(grasp.rotation_matrix)
-            position = grasp.translation
-            width = grasp.width
-            vgn_grasp = Grasp(Transform(orientation, position), width)
-            label = Label.SUCCESS if grasp.score >= 0.5 else Label.FAILURE
-            write_grasp(GIGA_GRASPNET_ROOT, scene_id, vgn_grasp, label)
+        write_point_cloud(GIGA_GRASPNET_ROOT, scene_uuid, mesh_pose_list, name="mesh_pose_list")
+        
+        # Grasps
+        scene_grasp_group = data_reader.load_scene_grasps(scene_idx)
+        for grasp in scene_grasp_group:
+            vgn_grasp = grasp_graspnet_to_vgn(grasp)
+            label = VGNLabel.SUCCESS if grasp.score >= 0.5 else VGNLabel.FAILURE
+            write_grasp(GIGA_GRASPNET_ROOT, scene_uuid, vgn_grasp, label)
+        if visualize:
+            # depth_o3d = o3d.geometry.Image((depth_img * 1000).astype(np.uint16))
+            depth_o3d = o3d.geometry.Image(depth_img)
+            o3d_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
+                width=camera_intrinsic.width,
+                height=camera_intrinsic.height,
+                fx=camera_intrinsic.fx,
+                fy=camera_intrinsic.fy,
+                cx=camera_intrinsic.cx,
+                cy=camera_intrinsic.cy,
+            )
+            full_pcd = o3d.geometry.PointCloud.create_from_depth_image(
+                depth_o3d,
+                o3d_camera_intrinsic,
+                np.linalg.inv(cam_pose),
+            )
+            origin = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
+            cam_pose_o3d = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1).transform(cam_pose)
+            obj_poses_o3d = [o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1).transform(obj_pose) for obj_pose in obj_poses]
+            grasp_indices = np.random.choice(len(scene_grasp_group), size=50, replace=False)
+            o3d_grasp_meshes = [grasp.to_open3d_geometry() for grasp in scene_grasp_group[grasp_indices]]
+            o3d.visualization.draw_geometries([full_pcd, origin, cam_pose_o3d, *obj_poses_o3d, *o3d_grasp_meshes])
     return
 
 
-def evaluate_grasp_point(sim, pos, normal, num_rotations=6):
-    # define initial grasp frame on object surface
-    z_axis = -normal
-    x_axis = np.r_[1.0, 0.0, 0.0]
-    if np.isclose(np.abs(np.dot(x_axis, z_axis)), 1.0, 1e-4):
-        x_axis = np.r_[0.0, 1.0, 0.0]
-    y_axis = np.cross(z_axis, x_axis)
-    x_axis = np.cross(y_axis, z_axis)
-    R = Rotation.from_matrix(np.vstack((x_axis, y_axis, z_axis)).T)
-
-    # try to grasp with different yaw angles
-    yaws = np.linspace(0.0, np.pi, num_rotations)
-    outcomes, widths = [], []
-    for yaw in yaws:
-        ori = R * Rotation.from_euler("z", yaw)
-        sim.restore_state()
-        candidate = Grasp(Transform(ori, pos), width=sim.gripper.max_opening_width)
-        outcome, width = sim.execute_grasp(candidate, remove=False)
-        outcomes.append(outcome)
-        widths.append(width)
-
-    # detect mid-point of widest peak of successful yaw angles
-    # TODO currently this does not properly handle periodicity
-    successes = (np.asarray(outcomes) == Label.SUCCESS).astype(float)
-    if np.sum(successes):
-        peaks, properties = signal.find_peaks(
-            x=np.r_[0, successes, 0], height=1, width=1
-        )
-        idx_of_widest_peak = peaks[np.argmax(properties["widths"])] - 1
-        ori = R * Rotation.from_euler("z", yaws[idx_of_widest_peak])
-        width = widths[idx_of_widest_peak]
-
-    return Grasp(Transform(ori, pos), width), int(np.max(outcomes))
-
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--num-proc", type=int, default=1)
-    parser.add_argument("--save-scene", action="store_true")
-    args = parser.parse_args()
-    args.save_scene = True
-    if args.num_proc > 1:
-        pool = mp.Pool(processes=args.num_proc)
-        for i in range(args.num_proc):
-            pool.apply_async(func=main, args=(args, i))
-        pool.close()
-        pool.join()
-    else:
-        main(args, 0)
+    main(visualize=True)
