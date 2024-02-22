@@ -93,4 +93,4 @@ def main(visualize: bool = False):
 
 
 if __name__ == "__main__":
-    main(visualize=True)
+    main(visualize=False)
