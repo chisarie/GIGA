@@ -38,9 +38,12 @@ def main(visualize: bool = False):
     )
 
     for scene_idx in tqdm(range(len(data_reader.scenes_idx))):
+        scene_center = data_reader.load_scene_center(scene_idx)
+        scene_origin = scene_center - np.array([size / 2, size / 2, 0])
         # Depth images (i.e. scenes)
         depth_img = data_reader.load_depth(scene_idx, img_idx=0)
         cam_pose = data_reader.load_cam_pose(scene_idx, img_idx=0)
+        cam_pose[:3, 3] -= scene_origin
         extrinsic = np.r_[Rotation.from_matrix(cam_pose[:3, :3]).as_quat(), cam_pose[:3, 3]]
         # TODO: check depth_img format (uint vs float)
         scene_uuid = write_sensor_data(GIGA_GRASPNET_ROOT, depth_img, extrinsic)
@@ -49,6 +52,7 @@ def main(visualize: bool = False):
         obj_indices, obj_poses = data_reader.load_obj_poses(scene_idx)
         mesh_pose_list = []
         for obj_idx, obj_pose in zip(obj_indices, obj_poses):
+            obj_pose[:3, 3] -= scene_origin
             scale = 1.0
             mesh_path = GRASPNET_ROOT / "models" / f"{obj_idx:03d}" / "textured.obj"
             mesh_pose_list.append((str(mesh_path), scale, obj_pose))
@@ -56,6 +60,9 @@ def main(visualize: bool = False):
         
         # Grasps
         scene_grasp_group = data_reader.load_scene_grasps(scene_idx)
+        scene_origin_transform = np.eye(4)
+        scene_origin_transform[:3, 3] -= scene_origin
+        scene_grasp_group = scene_grasp_group.transform(scene_origin_transform)
         for grasp in scene_grasp_group:
             vgn_grasp = grasp_graspnet_to_vgn(grasp)
             label = VGNLabel.SUCCESS if grasp.score >= 0.5 else VGNLabel.FAILURE

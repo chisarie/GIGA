@@ -70,6 +70,10 @@ class GraspNetReader:
         obj_poses = [wTcam @ camTpose for camTpose in camTposes]
         return obj_indices, obj_poses
 
+    def load_scene_center(self, scene_idx: int) -> np.ndarray:
+        _, obj_poses = self.load_obj_poses(scene_idx)
+        return np.mean([pose[:3, 3] for pose in obj_poses], axis=0)
+
     def load_scene_grasps(self, scene_idx: int) -> GraspGroup:
         wTcam = self.load_cam_pose(scene_idx, img_idx=0)
         grasp_group = self.graspnet_api.loadGrasp(scene_idx, annId=0, fric_coef_thresh=1.0)
