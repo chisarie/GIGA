@@ -28,8 +28,8 @@ def main(visualize: bool = False):
 
     data_reader = GraspNetReader()
 
-    (root_path / "scenes").mkdir(parents=True, exist_ok=True)
-    (root_path / "mesh_pose_list").mkdir(parents=True, exist_ok=True)
+    (root_path / "scenes").mkdir(parents=True, exist_ok=False)
+    (root_path / "mesh_pose_list").mkdir(parents=True, exist_ok=False)
     write_setup(
         root_path,
         size,
@@ -45,8 +45,7 @@ def main(visualize: bool = False):
         depth_img = data_reader.load_depth(scene_idx, img_idx=0)
         cam_pose = data_reader.load_cam_pose(scene_idx, img_idx=0)
         cam_pose[:3, 3] -= scene_origin
-        extrinsic = np.r_[Rotation.from_matrix(cam_pose[:3, :3]).as_quat(), cam_pose[:3, 3]]
-        scene_uuid = write_sensor_data(root_path, depth_img, extrinsic)
+        scene_uuid = write_sensor_data(root_path, depth_img, cam_pose[np.newaxis, ...])
 
         # Mesh pose list
         obj_indices, obj_poses = data_reader.load_obj_poses(scene_idx)

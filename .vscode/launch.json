@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -14,7 +14,7 @@
         },
         {
             "name": "Sim Pile",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/scripts/sim_grasp_multiple.py",
             "args": [
@@ -38,6 +38,64 @@
                 "--result-path",
                 "./result",
                 "--sim-gui"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Generate Data parallel",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/generate_data_parallel.py",
+            "args": [
+                "/home/chisari/datasets/centergrasp_g/giga_graspnet/train_raw",
+                "--save-scene",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Construct dataset parallel",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/construct_dataset_parallel.py",
+            "args": [
+                "--num-proc",
+                "1",
+                "--single-view",
+                "--add-noise",
+                "dex",
+                "/home/chisari/datasets/centergrasp_g/giga_graspnet/train_raw",
+                "/home/chisari/datasets/centergrasp_g/giga_graspnet/train_processed/"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Save Occupancy",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/save_occ_data_parallel.py",
+            "args": [
+                "/home/chisari/datasets/centergrasp_g/giga_graspnet/train_raw",
+                "100000", 
+                "2", 
+                "--num-proc", 
+                "1",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },        
+        {
+            "name": "Train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/train_giga.py",
+            "args": [
+                "--dataset_raw",
+                "/home/chisari/datasets/centergrasp_g/giga_graspnet/train_raw",
+                "--dataset",
+                "/home/chisari/datasets/centergrasp_g/giga_graspnet/train_processed/"
             ],
             "console": "integratedTerminal",
             "justMyCode": false
