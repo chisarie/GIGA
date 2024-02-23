@@ -14,7 +14,7 @@ from vgn.graspnet.graspnet_data import KINECT_INTRINSIC, GraspNetReader, GIGA_GR
 
 def grasp_graspnet_to_vgn(grasp: GraspNetGrasp) -> VGNGrasp:
     orientation = Rotation.from_matrix(grasp.rotation_matrix)
-    position = grasp.translation
+    position = grasp.translation + grasp.rotation_matrix[:3, 2] * grasp.depth
     width = grasp.width
     return VGNGrasp(Transform(orientation, position), width)
 
@@ -46,7 +46,6 @@ def main(visualize: bool = False):
         cam_pose = data_reader.load_cam_pose(scene_idx, img_idx=0)
         cam_pose[:3, 3] -= scene_origin
         extrinsic = np.r_[Rotation.from_matrix(cam_pose[:3, :3]).as_quat(), cam_pose[:3, 3]]
-        # TODO: check depth_img format (uint vs float)
         scene_uuid = write_sensor_data(root_path, depth_img, extrinsic)
 
         # Mesh pose list
@@ -67,7 +66,7 @@ def main(visualize: bool = False):
         for grasp in scene_grasp_group:
             vgn_grasp = grasp_graspnet_to_vgn(grasp)
             label = VGNLabel.SUCCESS if grasp.score >= 0.5 else VGNLabel.FAILURE
-            write_grasp(GIGA_GRASPNET_ROOT, scene_uuid, vgn_grasp, int(label))
+            write_grasp(root_path, scene_uuid, vgn_grasp, int(label))
         if visualize:
             # depth_o3d = o3d.geometry.Image((depth_img * 1000).astype(np.uint16))
             depth_o3d = o3d.geometry.Image(depth_img)

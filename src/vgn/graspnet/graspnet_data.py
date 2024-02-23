@@ -47,6 +47,7 @@ class GraspNetReader:
     
     def load_depth(self, scene_idx: int, img_idx: int) -> np.ndarray:
         depth = self.graspnet_api.loadDepth(sceneId=scene_idx, camera=self.camera, annId=img_idx)
+        depth = depth[np.newaxis, ...].astype(np.float32) / 1000
         return depth
     
     def load_cam_pose(self, scene_idx: int, img_idx: int) -> np.ndarray:
