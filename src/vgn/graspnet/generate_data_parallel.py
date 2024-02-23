@@ -19,6 +19,7 @@ def grasp_graspnet_to_vgn(grasp: GraspNetGrasp) -> VGNGrasp:
     return VGNGrasp(Transform(orientation, position), width)
 
 def main(visualize: bool = False):
+    root_path = GIGA_GRASPNET_ROOT / "train_raw"
     np.random.seed(123)
     finger_depth = 0.05
     max_opening_width = 0.08
@@ -27,10 +28,10 @@ def main(visualize: bool = False):
 
     data_reader = GraspNetReader()
 
-    (GIGA_GRASPNET_ROOT / "scenes").mkdir(parents=True, exist_ok=True)
-    (GIGA_GRASPNET_ROOT / "mesh_pose_list").mkdir(parents=True, exist_ok=True)
+    (root_path / "scenes").mkdir(parents=True, exist_ok=True)
+    (root_path / "mesh_pose_list").mkdir(parents=True, exist_ok=True)
     write_setup(
-        GIGA_GRASPNET_ROOT,
+        root_path,
         size,
         camera_intrinsic,
         max_opening_width,
@@ -46,7 +47,7 @@ def main(visualize: bool = False):
         cam_pose[:3, 3] -= scene_origin
         extrinsic = np.r_[Rotation.from_matrix(cam_pose[:3, :3]).as_quat(), cam_pose[:3, 3]]
         # TODO: check depth_img format (uint vs float)
-        scene_uuid = write_sensor_data(GIGA_GRASPNET_ROOT, depth_img, extrinsic)
+        scene_uuid = write_sensor_data(root_path, depth_img, extrinsic)
 
         # Mesh pose list
         obj_indices, obj_poses = data_reader.load_obj_poses(scene_idx)
@@ -56,7 +57,7 @@ def main(visualize: bool = False):
             scale = 1.0
             mesh_path = GRASPNET_ROOT / "models" / f"{obj_idx:03d}" / "textured.obj"
             mesh_pose_list.append((str(mesh_path), scale, obj_pose))
-        write_point_cloud(GIGA_GRASPNET_ROOT, scene_uuid, mesh_pose_list, name="mesh_pose_list")
+        write_point_cloud(root_path, scene_uuid, mesh_pose_list, name="mesh_pose_list")
         
         # Grasps
         scene_grasp_group = data_reader.load_scene_grasps(scene_idx)
@@ -66,7 +67,7 @@ def main(visualize: bool = False):
         for grasp in scene_grasp_group:
             vgn_grasp = grasp_graspnet_to_vgn(grasp)
             label = VGNLabel.SUCCESS if grasp.score >= 0.5 else VGNLabel.FAILURE
-            write_grasp(GIGA_GRASPNET_ROOT, scene_uuid, vgn_grasp, label)
+            write_grasp(GIGA_GRASPNET_ROOT, scene_uuid, vgn_grasp, int(label))
         if visualize:
             # depth_o3d = o3d.geometry.Image((depth_img * 1000).astype(np.uint16))
             depth_o3d = o3d.geometry.Image(depth_img)
