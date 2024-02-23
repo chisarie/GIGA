@@ -34,7 +34,7 @@ def main(args):
     # df = read_df(root)
     positives = df[df["label"] == 1]
     negatives = df[df["label"] == 0]
-    i = np.random.choice(negatives.index, len(negatives.index) - len(positives.index), replace=False)
+    i = np.random.choice(negatives.index, max(len(negatives.index) - len(positives.index), 0), replace=False)
     df = df.drop(i)
     write_df(df, root)
 
