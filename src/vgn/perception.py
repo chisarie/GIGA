@@ -106,22 +106,22 @@ class TSDFVolume(object):
 
     def get_grid(self):
         # TODO(mbreyer) very slow (~35 ms / 50 ms of the whole pipeline)
-        # shape = (1, self.resolution, self.resolution, self.resolution)
-        # tsdf_grid = np.zeros(shape, dtype=np.float32)
-        # voxels = self._volume.extract_voxel_grid().get_voxels()
-        # for voxel in voxels:
-        #     i, j, k = voxel.grid_index
-        #     tsdf_grid[0, i, j, k] = voxel.color[0]
         shape = (1, self.resolution, self.resolution, self.resolution)
         tsdf_grid = np.zeros(shape, dtype=np.float32)
-        tsdf_vol = np.asarray(self._volume.extract_volume_tsdf()).astype(np.float32)
-        tsdf_vals = np.copy(tsdf_vol[:, 0]).reshape(shape)
-        tsdf_weights = np.copy(tsdf_vol[:, 1]).reshape(shape)
-        tsdf_grid = np.where(
-            (tsdf_weights != 0.0) & (tsdf_vals < 0.98) & (tsdf_vals >= -0.98),
-            (tsdf_vals + 1.0) * 0.5,
-            tsdf_grid,
-        )
+        voxels = self._volume.extract_voxel_grid().get_voxels()
+        for voxel in voxels:
+            i, j, k = voxel.grid_index
+            tsdf_grid[0, i, j, k] = voxel.color[0]
+        # shape = (1, self.resolution, self.resolution, self.resolution)
+        # tsdf_grid = np.zeros(shape, dtype=np.float32)
+        # tsdf_vol = np.asarray(self._volume.extract_volume_tsdf()).astype(np.float32)
+        # tsdf_vals = np.copy(tsdf_vol[:, 0]).reshape(shape)
+        # tsdf_weights = np.copy(tsdf_vol[:, 1]).reshape(shape)
+        # tsdf_grid = np.where(
+        #     (tsdf_weights != 0.0) & (tsdf_vals < 0.98) & (tsdf_vals >= -0.98),
+        #     (tsdf_vals + 1.0) * 0.5,
+        #     tsdf_grid,
+        # )
         return tsdf_grid
 
     def get_cloud(self):
