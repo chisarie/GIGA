@@ -68,7 +68,7 @@ def main(visualize: bool = False):
             write_grasp(root_path, scene_uuid, vgn_grasp, int(label))
         if visualize:
             # depth_o3d = o3d.geometry.Image((depth_img * 1000).astype(np.uint16))
-            depth_o3d = o3d.geometry.Image(depth_img)
+            depth_o3d = o3d.geometry.Image(depth_img.squeeze())
             o3d_camera_intrinsic = o3d.camera.PinholeCameraIntrinsic(
                 width=camera_intrinsic.width,
                 height=camera_intrinsic.height,
